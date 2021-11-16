@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strconv"
@@ -53,6 +54,12 @@ func stringInSlice(a string, list []string) bool {
 		}
 	}
 	return false
+}
+
+func checkError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
 
 func instructionsAreValid(instructions []string) bool {
@@ -124,6 +131,66 @@ func instructionsAreValid(instructions []string) bool {
 	return true
 }
 
+// Read from stdio into #1, per specification
+func readInput() {
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	text := scanner.Text()
+	//fmt.Println(text)
+	input, err := strconv.Atoi(text)
+	// panic if we receive a NaN
+	checkError(err)
+	registers[1] = input
+}
+
+// Print content of register #1, per specification
+func println() {
+	fmt.Printf("%d\n", registers[1])
+}
+
+func parseRegisterType(currentInstructions []string) (int, int, int) {
+	register1, err := strconv.Atoi(string(currentInstructions[1])[1:])
+	checkError(err)
+	register2, err := strconv.Atoi(string(currentInstructions[2])[1:])
+	checkError(err)
+	immediate, err := strconv.Atoi(string(currentInstructions[3]))
+	checkError(err)
+
+	return register1, register2, immediate
+}
+
+func parseInstructions(instructions []string) {
+	idx := 0
+	for idx < len(instructions) {
+		currentInstructions := strings.Split(instructions[idx], " ") // instructions[idx].split(" ")
+		currentInstruction := currentInstructions[0]
+		fmt.Printf("current instruction = %s\n", currentInstruction)
+
+		if currentInstruction == "input" {
+			readInput()
+			//fmt.Printf("in register 1 is now %d\n", registers[1])
+		} else if currentInstruction == "exit" {
+			break
+		} else if currentInstruction == "print" {
+			println()
+		} else if currentInstruction == "add" {
+			reg1, reg2, imm := parseRegisterType(currentInstructions)
+			fmt.Println("reg1 =", reg1)
+			fmt.Println("reg2 =", reg2)
+			fmt.Println("imm =", imm)
+		}
+
+		// elif instruction == "add":
+		//         reg1, reg2, imm = parse_r_type(current_inst)
+		//         registers[reg1] = registers[reg1] + registers[reg2] + imm
+		//     elif instruction == "sub":
+		//         reg1, reg2, imm = parse_r_type(current_inst)
+		//         registers[reg1] = registers[reg1] - registers[reg2] - imm
+
+		idx += 1
+	}
+}
+
 func main() {
 	// read from stdin and print the output
 	fmt.Println(len(os.Args))
@@ -141,6 +208,7 @@ func main() {
 			instructions := readLineForLine(file)
 			fmt.Println(instructions)
 			if instructionsAreValid(instructions) {
+				parseInstructions(instructions)
 
 			} else {
 				fmt.Println("Provided instructions are not valid.")
