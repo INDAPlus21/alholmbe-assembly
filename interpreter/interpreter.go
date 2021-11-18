@@ -8,44 +8,6 @@ import (
 	"strings"
 )
 
-// the language has 4 registers
-var registers = [4]int{0, 0, 0, 0}
-
-// 3 arrays containing the different types of instructions we allow
-var registerType = []string{"add", "sub", "set", "jeq"}
-var jumpType = []string{"j"}
-var specialType = []string{"input", "print", "exit"}
-
-func readLineForLine(file string) []string {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		panic(err)
-	}
-	instructions := []string{}
-
-	// split data on newline
-	formattedData := strings.Split(string(data), "\n")
-	for _, line := range formattedData {
-
-		// find comment or end of line
-		commentStart := strings.Index(line, "//")
-		var endOfLine int
-		if commentStart == -1 {
-			endOfLine = len(line)
-		} else {
-			endOfLine = commentStart
-		}
-
-		line = line[:endOfLine]
-		line = strings.TrimSpace(line)
-		//fmt.Printf("line #%d: %s\n", i+1, line)
-		instructions = append(instructions, line)
-	}
-	fmt.Println("len(instructions) =", len(instructions))
-	// instructions is now a slice of all lines without comments or extra whitespace
-	return instructions
-}
-
 // Helper function that checks if a slice contains a string
 func stringInSlice(a string, list []string) bool {
 	for _, b := range list {
@@ -60,6 +22,38 @@ func checkError(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// the language has 4 registers
+var registers = [4]int{0, 0, 0, 0}
+
+// 3 arrays containing the different types of instructions we allow
+var registerType = []string{"add", "sub", "set", "jeq"}
+var jumpType = []string{"j"}
+var specialType = []string{"input", "print", "exit"}
+
+func splitIntoLines(file []byte) []string {
+	instructions := []string{}
+
+	// split data on newline
+	formattedData := strings.Split(string(file), "\n")
+	for _, line := range formattedData {
+
+		// find comment or end of line
+		commentStart := strings.Index(line, "//")
+		var endOfLine int
+		if commentStart == -1 {
+			endOfLine = len(line)
+		} else {
+			endOfLine = commentStart
+		}
+
+		line = line[:endOfLine]
+		line = strings.TrimSpace(line)
+		instructions = append(instructions, line)
+	}
+	// instructions is now a slice of all lines without comments or extra whitespace
+	return instructions
 }
 
 func instructionsAreValid(instructions []string) bool {
@@ -133,12 +127,11 @@ func instructionsAreValid(instructions []string) bool {
 
 // Read from stdio into #1, per specification
 func readInput() {
+	fmt.Print("> ")
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	text := scanner.Text()
-	//fmt.Println(text)
 	input, err := strconv.Atoi(text)
-	// panic if we receive a NaN
 	checkError(err)
 	registers[1] = input
 }
@@ -162,61 +155,67 @@ func parseRegisterType(currentInstructions []string) (int, int, int) {
 func parseInstructions(instructions []string) {
 	idx := 0
 	for idx < len(instructions) {
-		currentInstructions := strings.Split(instructions[idx], " ") // instructions[idx].split(" ")
+		currentInstructions := strings.Split(instructions[idx], " ")
 		currentInstruction := currentInstructions[0]
-		fmt.Printf("current instruction = %s\n", currentInstruction)
 
 		if currentInstruction == "input" {
 			readInput()
-			//fmt.Printf("in register 1 is now %d\n", registers[1])
 		} else if currentInstruction == "exit" {
 			break
 		} else if currentInstruction == "print" {
 			println()
 		} else if currentInstruction == "add" {
 			reg1, reg2, imm := parseRegisterType(currentInstructions)
-			fmt.Println("reg1 =", reg1)
-			fmt.Println("reg2 =", reg2)
-			fmt.Println("imm =", imm)
+			registers[reg1] = registers[reg1] + registers[reg2] + imm
+		} else if currentInstruction == "sub" {
+			reg1, reg2, imm := parseRegisterType(currentInstructions)
+			registers[reg1] = registers[reg1] - registers[reg2] - imm
+		} else if currentInstruction == "set" {
+			reg1, reg2, imm := parseRegisterType(currentInstructions)
+			registers[reg1] = registers[reg2] + imm
+		} else if currentInstruction == "j" {
+			instructionAsInt, err := strconv.Atoi(currentInstructions[1])
+			checkError(err)
+			idx += instructionAsInt
+		} else if currentInstruction == "jeq" {
+			reg1, reg2, imm := parseRegisterType(currentInstructions)
+			// if compared regs are eq => increment with the immediate value (program counter)
+			if registers[reg1] == registers[reg2] {
+				idx += imm
+			} else if imm == 0 {
+				idx += 1
+			}
 		}
-
-		// elif instruction == "add":
-		//         reg1, reg2, imm = parse_r_type(current_inst)
-		//         registers[reg1] = registers[reg1] + registers[reg2] + imm
-		//     elif instruction == "sub":
-		//         reg1, reg2, imm = parse_r_type(current_inst)
-		//         registers[reg1] = registers[reg1] - registers[reg2] - imm
 
 		idx += 1
 	}
 }
 
 func main() {
-	// read from stdin and print the output
-	fmt.Println(len(os.Args))
 	if len(os.Args) != 2 {
 		fmt.Println("\tIncorrect number of arguments, command should be\n\t'go run . <filename>'")
 	} else {
 		file := os.Args[1]
 		fmt.Println(file)
-		// check if file exists
 		// check that last 5 chars is .bbvv
 		if len(file) < 5 || file[len(file)-5:] != ".bbvv" {
 			fmt.Println("bs file =", file)
 		} else {
-			// it's a legit bbvv file
-			instructions := readLineForLine(file)
-			fmt.Println(instructions)
-			if instructionsAreValid(instructions) {
-				parseInstructions(instructions)
+			// check if file exists
+			fileContent, err := os.ReadFile(file)
+			checkError(err)
 
+			// being here means it's a legit bbvv file
+			instructions := splitIntoLines(fileContent)
+			fmt.Println(instructions)
+			// check if the provided instructions are valid according to the bbvv specification
+			if instructionsAreValid(instructions) {
+				// parse and execute the instructions
+				parseInstructions(instructions)
 			} else {
 				fmt.Println("Provided instructions are not valid.")
 			}
 		}
 	}
-	//_ := os.Args[0]
-	//_ := os.Args[1]
 
-	// "parse" the lines
 }
